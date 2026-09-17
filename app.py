@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 # --- STORAGE ARCHITECTURE PATH CONTEXTS ---
 IS_RENDER = "RENDER" in os.environ
-BASE_DATA_DIR = "/app/data" if IS_RENDER else "."
+BASE_DATA_DIR = "data" if IS_RENDER else "."
 
 BARCODE_DIR = os.path.join(BASE_DATA_DIR, "barcodes")
 EXPORT_DIR = os.path.join(BASE_DATA_DIR, "exports")

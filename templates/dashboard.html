@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Printing Press Dashboard</title>
+    <!--<link href="https://jsdelivr.net" rel="stylesheet">-->
+    <link href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+    <div class="container my-5">
+        <header class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom">
+            <h1 class="h3 text-dark">⚙️ Pressroom Barcode System</h1>
+            <form action="/export" method="POST">
+                <button type="submit" class="btn btn-success fw-bold">📥 One-Click Excel Export</button>
+            </form>
+        </header>
+
+        <!-- Dynamic Alert Container -->
+        <div id="alertContainer"></div>
+
+        <div class="row g-4">
+            <!-- Left Side: Barcode Input / Entry Console -->
+            <div class="col-md-4">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-dark text-white fw-bold">Scan / Entry Console</div>
+                    <div class="card-body">
+                        <form id="scanForm">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Active Session ID</label>
+                                <input type="text" id="sessionId" class="form-control" placeholder="e.g. SESS-2026-AM" value="SESS-2026-AM" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Operator ID</label>
+                                <input type="text" id="operatorId" class="form-control" placeholder="e.g. OP-042" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Artwork Symbology</label>
+                                <select id="symbology" class="form-select">
+                                    <option value="CODE128">Code 128 (AlphaNumeric Job IDs)</option>
+                                    <option value="EAN13">EAN-13 (Standard Retail/13-Digits)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Barcode String Data</label>
+                                <input type="text" id="barcodeData" class="form-control" placeholder="Job code or alphanumeric strings" autofocus required>
+                                <div id="validationFeedback" class="invalid-feedback"></div>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="generateSvg" checked>
+                                <label class="form-check-label small" for="generateSvg">Generate CTP Ready Vector SVG</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 fw-bold">Submit Floor Scan</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side: Live Reporting Log -->
+            <div class="col-md-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-secondary text-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>Live Floor Scan Stream</span>
+                        <span id="recordCount" class="badge bg-light text-dark">{{ logs|length }} Total Records</span>
+                    </div>
+                    <div class="card-body p-0" style="max-height: 480px; overflow-y: auto;">
+                        <table class="table table-hover table-striped mb-0 small">
+                            <thead class="table-dark sticky-top">
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Session</th>
+                                    <th>Operator</th>
+                                    <th>Barcode Data</th>
+                                    <th>Vector Artwork</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logTableBody">
+                                {% for log in logs %}
+                                <tr>
+                                    <td class="text-muted">{{ log.Timestamp }}</td>
+                                    <td><span class="badge bg-outline text-secondary border border-secondary">{{ log.Session_ID }}</span></td>
+                                    <td><strong>{{ log.Operator_ID }}</strong></td>
+                                    <td class="font-monospace text-primary fw-bold">{{ log.Barcode_Data }}</td>
+                                    <td>
+                                        {% if log.Barcode_Data|length == 13 and log.Barcode_Data.isdigit() %}
+                                            <a href="/barcodes/barcode_ean13.svg" class="btn btn-xs btn-outline-dark py-0 px-2" style="font-size: 0.75rem;">📥 Download SVG</a>
+                                        {% else %}
+                                            <a href="/barcodes/barcode_code128.svg" class="btn btn-xs btn-outline-dark py-0 px-2" style="font-size: 0.75rem;">📥 Download SVG</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Core JS Bundle -->
+    <!--<script src="https://jsdelivr.net"></script> -->
+    <script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+    <!-- Separated Custom System Application Logic -->
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

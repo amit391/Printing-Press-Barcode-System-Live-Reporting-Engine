@@ -8,13 +8,28 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 
 app = Flask(__name__)
 
+# --- MODIFIED FOR RENDER PERSISTENT STORAGE ---
+# If running on Render, use the attached persistent volume mount path. 
+# Otherwise, fall back to the local project folder layout for local testing.
+IS_RENDER = "RENDER" in os.environ
+BASE_DATA_DIR = "/app/data" if IS_RENDER else "."
+
+# Update directory and log paths dynamically
+BARCODE_DIR = os.path.join(BASE_DATA_DIR, "barcodes")
+EXPORT_DIR = os.path.join(BASE_DATA_DIR, "exports")
+LOG_FILE = os.path.join(BASE_DATA_DIR, "production_scan_logs.csv")
+#-----------------------------------------------------------
+# Ensure target storage folders exist
+os.makedirs(BARCODE_DIR, exist_ok=True)
+os.makedirs(EXPORT_DIR, exist_ok=True)
+
 # Ensure production folders exist
 os.makedirs("barcodes", exist_ok=True)
 os.makedirs("exports", exist_ok=True)
 
 LOG_FILE = "production_scan_logs.csv"
 
-def generate_vector_barcode(symbology, data, file_prefix="barcodes/barcode"):
+def generate_vector_barcode(symbology, data):
     symbology_clean = symbology.upper().replace("-", "")
     if symbology_clean not in ["CODE128", "EAN13"]:
         raise ValueError("Unsupported symbology. Use 'CODE128' or 'EAN13'.")
@@ -28,6 +43,7 @@ def generate_vector_barcode(symbology, data, file_prefix="barcodes/barcode"):
     }
     
     barcode_class = barcode.get_barcode_class(symbology_clean)
+    file_prefix = os.path.join(BARCODE_DIR, "barcode")
     output_filename = f"{file_prefix}_{symbology_clean.lower()}"
     
     with open(f"{output_filename}.svg", "wb") as f:
@@ -63,7 +79,7 @@ def export_session_to_excel():
 
     df = pd.read_csv(LOG_FILE)
     timestamp_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    excel_filename = f"exports/Supervisor_Report_{timestamp_str}.xlsx"
+    excel_filename = os.path.join(EXPORT_DIR, f"Supervisor_Report_{timestamp_str}.xlsx"
 
     with pd.ExcelWriter(excel_filename, engine="openpyxl") as writer:
         df.to_excel(writer, sheet_name="All_Sessions_Master", index=False)
@@ -126,7 +142,7 @@ def export_excel():
 
 @app.route("/barcodes/<filename>")
 def download_barcode(filename):
-    return send_from_directory("barcodes", filename, as_attachment=True)
+    return send_from_directory(BARCODE_DIR, filename, as_attachment=True)
 
 if __name__ == "__main__":
     if not os.path.exists(LOG_FILE):

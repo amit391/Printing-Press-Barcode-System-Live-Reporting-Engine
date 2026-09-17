@@ -3,54 +3,26 @@ import os
 import csv
 import datetime
 import barcode
-from functools import wraps
 from barcode.writer import SVGWriter
-from flask import Flask, render_template, request, jsonify, send_from_directory, Response
+from flask import Flask, render_template, request, jsonify, send_from_directory
 
 app = Flask(__name__)
 
-# --- STORAGE ARCHITECTURE PATH CONTEXTS ---
+# --- FIX: RELATIVE PATHING FOR RENDER PERSISTENT DISKS ---
 IS_RENDER = "RENDER" in os.environ
+# Use "data" instead of "/app/data" to bypass container root permission locks
 BASE_DATA_DIR = "data" if IS_RENDER else "."
 
 BARCODE_DIR = os.path.join(BASE_DATA_DIR, "barcodes")
 EXPORT_DIR = os.path.join(BASE_DATA_DIR, "exports")
 LOG_FILE = os.path.join(BASE_DATA_DIR, "production_scan_logs.csv")
 
+# Safely create storage folders inside the accessible working directory context
 os.makedirs(BARCODE_DIR, exist_ok=True)
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
 # ==============================================================================
-# HTTP BASIC AUTHENTICATION LAYER
-# ==============================================================================
-
-def check_auth(username, password):
-    """Verifies credentials against secure host Environment Variables with local fallbacks."""
-    # Pull credentials from server environment, default to fallback values if blank
-    secure_user = os.environ.get("SUPERVISOR_USER", "admin")
-    secure_pass = os.environ.get("SUPERVISOR_PASS", "press2026")
-    return username == secure_user and password == secure_pass
-
-def authenticate():
-    """Sends a 401 response that triggers the browser's native login modal."""
-    return Response(
-        "Could not verify your access level credentials.\n"
-        "Please provide correct supervisor login parameters.", 401,
-        {'WWW-Authenticate': 'Basic realm="Supervisor Access Required"'}
-    )
-
-def requires_auth(f):
-    """Decorator to protect specific operational routes."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            return authenticate()
-        return f(*args, **kwargs)
-    return decorated
-
-# ==============================================================================
-# CORE CORE ENGINE ACTIONS (Preserved Framework)
+# CORE ENGINE FUNCTIONS
 # ==============================================================================
 
 def generate_vector_barcode(symbology, data):
@@ -90,7 +62,7 @@ def read_scan_logs():
         return []
     with open(LOG_FILE, mode="r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        return list(reader)[::-1]
+        return list(reader)[::-1]  # Newest records first
 
 def export_session_to_excel():
     try:
@@ -117,18 +89,18 @@ def export_session_to_excel():
     return excel_filename
 
 # ==============================================================================
-# SECURED APP ROUTING PANELS
+# WEB APP ROUTING PANELS (AUTHENTICATION STRIPPED)
 # ==============================================================================
 
 @app.route("/", methods=["GET"])
-@requires_auth  # Intercepts unauthorized hits completely
 def dashboard():
+    """Main route showing the industrial press live logging UI."""
     logs = read_scan_logs()
     return render_template("dashboard.html", logs=logs)
 
 @app.route("/api/scan", methods=["POST"])
-@requires_auth  # Secures API endpoints from external manipulation script packets
 def api_scan():
+    """Asynchronous pipeline handling hardware inputs & real-time log returns."""
     data = request.get_json() or {}
     barcode_data = data.get("barcode_data", "").strip()
     operator_id = data.get("operator_id", "").strip()
@@ -156,23 +128,24 @@ def api_scan():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/export", methods=["POST"])
-@requires_auth
 def export_excel():
+    """Compiles local CSV states into multi-tab supervisor excel sheets."""
     excel_path = export_session_to_excel()
     if excel_path:
         directory, filename = os.path.split(excel_path)
         return send_from_directory(directory, filename, as_attachment=True)
-    return "Export Failed.", 400
+    return "Export Failed. No data logs found or dependencies missing.", 400
 
 @app.route("/barcodes/<filename>")
-@requires_auth
 def download_barcode(filename):
+    """Retrieves plate-ready vector graphics on demand."""
     return send_from_directory(BARCODE_DIR, filename, as_attachment=True)
 
 if __name__ == "__main__":
+    # Seed mock entry row if starting completely fresh
     if not os.path.exists(LOG_FILE):
         log_scan_event("JOB-101A-REV3", "OP-042", "SESS-2026-AM")
         generate_vector_barcode("code128", "JOB-101A-REV3")
 
-    # Local fallback testing binds
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    # Set host context to listen broadly across production subnets
+    app.run(debug=True, host="0.0.0.0", port=5000)
